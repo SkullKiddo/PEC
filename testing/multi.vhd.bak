@@ -1,0 +1,57 @@
+library ieee;
+USE ieee.std_logic_1164.all;
+
+entity multi is
+    port(clk       : IN  STD_LOGIC;
+         boot      : IN  STD_LOGIC;
+         ldpc_l    : IN  STD_LOGIC;
+         wrd_l     : IN  STD_LOGIC;
+         wr_m_l    : IN  STD_LOGIC;
+         w_b       : IN  STD_LOGIC;
+         ldpc      : OUT STD_LOGIC;
+         wrd       : OUT STD_LOGIC;
+         wr_m      : OUT STD_LOGIC;
+         ldir      : OUT STD_LOGIC;
+         ins_dad   : OUT STD_LOGIC;
+         word_byte : OUT STD_LOGIC);
+end entity;
+
+architecture Structure of multi is
+
+    -- Aqui iria la declaracion de las los estados de la maquina de estados
+
+type state_type is(fetch,exec);
+signal estat: state_type;
+	 
+	 
+begin
+    estado:process(clk,boot) 
+		begin
+			if boot = '1' then
+				estat <= fetch;
+			elsif rising_edge(clk) then
+				if estat = fetch then estat <= exec;
+				else estat <= fetch; end if;
+			end if;	
+	end process;
+	
+	with estat select wrd <=
+		'0' when fetch,
+		wrd_l when others;
+	
+	with estat select wr_m <=
+		'0' when fetch,
+		wr_m_l when others;
+		
+	with estat select word_byte <=
+		'0' when fetch,
+		w_b when others;
+		
+	with estat select ldpc <=
+		'0' when exec,
+		ldpc_l when others;
+	
+	ldir <= '1' when estat = fetch else '0';
+	ins_dad <= '1' when estat = fetch else '0';
+		
+end Structure;

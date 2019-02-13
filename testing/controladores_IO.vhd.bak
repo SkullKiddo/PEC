@@ -1,0 +1,101 @@
+LIBRARY ieee;
+USE ieee.std_logic_1164.all;
+USE ieee.numeric_std.all;        --Esta libreria sera necesaria si usais conversiones TO_INTEGER
+USE ieee.std_logic_unsigned.all;
+
+ENTITY controladores_IO IS  
+  PORT (boot   : IN  STD_LOGIC; 
+		clk    : IN  std_logic;
+		PS2_CLK: INout STD_LOGIC ;
+		ps2_data   : inout STD_LOGIC;
+		addr_io     : IN  std_logic_vector(7 downto 0); 
+		wr_io  : in  std_logic_vector(15 downto 0); 
+		rd_io  : out std_logic_vector(15 downto 0); 
+		wr_out : in  std_logic; 
+		rd_in  : in  std_logic; 
+		led_verdes  : OUT STD_LOGIC_VECTOR(7 DOWNTO 0); 
+		led_rojos   : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+      SW        	: in std_logic_vector(7 downto 0);
+		sevenSeg 	: OUT std_LOGIC_VECTOR(15 DOWNTO 0);
+		KEY		  	: IN std_LOGIC_VECTOR(3 DOWNTO 0));
+	END controladores_IO; 
+	
+ARCHITECTURE Structure OF controladores_IO IS 
+
+type lmeuarray is array (255 downto 0) of std_logic_vector(15 downto 0);
+signal registres : lmeuarray;
+signal botones, interruptores : std_LOGIC_VECTOR(15 DOWNTO 0);
+signal read_keyboard, clear_keyboard : STD_LOGIC;
+signal data_keyboard : STD_LOGIC_VECTOR (7 downto 0);
+COMPONENT keyboard_controller_stub is
+    Port (clk        : in    STD_LOGIC;
+          reset      : in    STD_LOGIC;
+          ps2_clk    : inout STD_LOGIC;
+          ps2_data   : inout STD_LOGIC;
+          read_char  : out   STD_LOGIC_VECTOR (7 downto 0); --15
+          clear_char : in    STD_LOGIC;
+          data_ready : out   STD_LOGIC); --16
+END COMPONENT keyboard_controller_stub;
+
+signal read_char_C : STD_LOGIC_VECTOR(7 downto 0);
+signal data_ready_C, clear_char_c : STD_LOGIC; 
+
+BEGIN 
+	
+--		registre 7 BUTONS
+--		registre 8 SWITCHES
+--		registre 9 CONTROLADOR 7segs ENCES
+--		registre 10 VALOR 7segs
+--		registre 15 CHAR LLEGIT DEL TECLAT
+--		registre 16 CHAR TECLAT READY // CHAR TECLAT CLEAR
+
+
+process(clk)
+		begin
+		if boot = '1' then
+			registres(16) <= "0000000000000000";
+			registres(6) <= "1111111111111111";
+		elsif rising_edge(clk) then
+			if registres(16)(0) = '1' then registres(16) <= "0000000000000000";
+			end if;
+			if wr_out = '1' then 
+				if addr_io = "00010000" then clear_char_c <= '1';
+				else registres(conv_integer(addr_io)) <= wr_io;
+				end if;
+			end if;
+			registres(15)(15 downto 8) <= (others => read_char_C(7));
+			registres(15)(7 downto 0 ) <= read_char_C;
+			registres(7) <= botones;
+			registres(8) <= interruptores;
+			registres(16) <= (others => data_ready_C);
+			registres(10) <=  registres(15);
+		end if;
+		
+	end process;
+	
+
+	
+		rd_io <= registres(conv_integer(addr_io));
+		sevenSeg(3 DOWNTO 0) <= registres(10)(3 DOWNTO 0) when registres(9)(0) = '1' else "1111";
+		sevenSeg(7 DOWNTO 4) <= registres(10)(7 DOWNTO 4) when registres(9)(1) = '1' else "1111";
+		sevenSeg(11 DOWNTO 8) <= registres(10)(11 DOWNTO 8) when registres(9)(2) = '1' else "1111";
+		sevenSeg(15 DOWNTO 12) <= registres(10)(15 DOWNTO 12) when registres(9)(3) = '1' else "1111";
+
+
+led_verdes <= registres(5)(7 DOWNTO 0);
+led_rojos <= registres(6)(7 DOWNTO 0);
+botones(3 DOWNTO 0) <= KEY;
+botones(15 DOWNTO 4) <= (others => KEY(3));
+interruptores(7 DOWNTO 0) <= SW;
+interruptores(15 DOWNTO 8) <= (others => SW(7));
+
+Keyboard : KEYboard_controller_stub PORT MAP (clk => clk, reset => boot,
+          ps2_clk => PS2_CLK,
+          ps2_data => PS2_DATA,
+          read_char => read_char_C,
+          data_ready => data_ready_C,
+		  clear_char => clear_char_c); --16	
+
+
+
+END Structure;

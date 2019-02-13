@@ -1,0 +1,175 @@
+LIBRARY ieee;
+USE ieee.std_logic_1164.all;
+USE ieee.numeric_std.all;
+
+ENTITY control_l IS
+    PORT (ir     : IN  STD_LOGIC_VECTOR(15 DOWNTO 0);
+          op     : OUT STD_LOGIC_VECTOR(4 DOWNTO 0); --Indica la operación que va a realizar la ALU. 
+          ldpc   : OUT STD_LOGIC; --Esta señal a 1 indica que se puede incrementar el program counter (PC). Se mantendrá a 1 hasta quese ejecute una instrucción del tipo HALT, momento en el que permanecerá a 0 para detener elprocesador. 
+          wrd    : OUT STD_LOGIC; --Permiso de escritura en el Banco de registros. 
+          addr_a : OUT STD_LOGIC_VECTOR(2 DOWNTO 0); --Dirección del registro fuente del puerto A. 
+			 addr_b : OUT STD_LOGIC_VECTOR(2 DOWNTO 0); --Dirección del registro fuente del puerto B.
+          addr_d : OUT STD_LOGIC_VECTOR(2 DOWNTO 0); -- Dirección del registro destino
+          immed  : OUT STD_LOGIC_VECTOR(15 DOWNTO 0); -- Valor inmediato con extensión de signo extraído de la instrucción
+			 wr_m	  : OUT STD_LOGIC; -- Permiso de escritura en la memoria si es una instrucción ST o STB
+			 in_d	  : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- Esta señal a 1 indica que en el Banco de registros almacenaremos el valor procedente de la memoria y si vale 0 almacenaremos el valor procedente de la ALU.
+			 immed_x2:OUT STD_LOGIC; --La señal que determina si hay que desplazar el inmediato o no. Debe valer 1 si se ejecuta una instrucción de acceso a word como son las instrucciones LD y ST.
+			 word_byte:OUT STD_LOGIC;--La señal indica si el acceso a memoria es a nivel de byte o word. Sólo debe valer 1 cuando se esta ejecutando una instrucción LDB o STB
+			 reg_b :OUT STD_LOGIC;
+			 control_pc : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+			 z: IN STD_LOGIC;
+			 addr_io		: OUT std_logic_vector(7 downto 0);
+			 wr_out		: OUT  std_logic; 
+			 rd_in		: OUT  std_logic);
+END control_l;
+
+
+ARCHITECTURE Structure OF control_l IS
+
+CONSTANT ARITMET : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0000";
+CONSTANT MOV : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0101";
+CONSTANT LD : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0011";
+CONSTANT ST : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0100";
+CONSTANT LDB : STD_LOGIC_VECTOR (3 DOWNTO 0) := "1101";
+CONSTANT STB : STD_LOGIC_VECTOR (3 DOWNTO 0) := "1110";
+CONSTANT SALTCOND : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0110";
+CONSTANT IO : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0111";
+CONSTANT COMP : STD_LOGIC_VECTOR (3 DOWNTO 0) := "0001";
+CONSTANT MUL : STD_LOGIC_VECTOR (3 DOWNTO 0) := "1000";
+CONSTANT JMPS : STD_LOGIC_VECTOR (3 DOWNTO 0) := "1010";
+
+SIGNAL addra, addrb, addrd : std_LOGIC_VECTOR(2 DOWNTO 0);
+
+BEGIN
+
+--    	 with ir select op <= 
+--		"00" when "0101---1--------", --MOVHI
+--		"01" when "0101---0--------", --MOVI
+--		"10" when others; --LD, ST, LDB, STB
+--		
+		
+		op <=
+			"00000" when ir (15 DOWNTO 12) = "0101" and ir(8) = '0' else
+			"00001" when ir (15 DOWNTO 12) = "0101" and ir(8) = '1' else
+			"00011" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "000" else --and
+			"00100" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "001" else --or
+			"00101" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "010" else --xor
+			"00110" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "011" else --not
+			"00111" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "100" else --add
+			"01000" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "101" else --sub
+			"01001" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "110" else --sha
+			"01010" when ir (15 DOWNTO 12) = ARITMET and ir (5 DOWNTO 3) = "111" else --shl
+			"01011" when ir (15 DOWNTO 12) = COMP and ir (5 DOWNTO 3) = "000" else --cmplt
+			"01100" when ir (15 DOWNTO 12) = COMP and ir (5 DOWNTO 3) = "001" else --cmple
+			"01101" when ir (15 DOWNTO 12) = COMP and ir (5 DOWNTO 3) = "011" else --cmpeq
+			"01110" when ir (15 DOWNTO 12) = COMP and ir (5 DOWNTO 3) = "100" else --cmpltu
+			"01111" when ir (15 DOWNTO 12) = COMP and ir (5 DOWNTO 3) = "101" else --cmpleu
+			"10000" when ir (15 DOWNTO 12) = "0010" else --addi
+			"10001" when ir (15 DOWNTO 12) = MUL and ir (5 DOWNTO 3) = "000" else --mul
+			"10010" when ir (15 DOWNTO 12) = MUL and ir (5 DOWNTO 3) = "001" else --mulh
+			"10011" when ir (15 DOWNTO 12) = MUL and ir (5 DOWNTO 3) = "010" else --mulhu
+			"10100" when ir (15 DOWNTO 12) = MUL and ir (5 DOWNTO 3) = "100" else --div
+			"10101" when ir (15 DOWNTO 12) = MUL and ir (5 DOWNTO 3) = "101" else --divu
+			"10110" when ir (15 DOWNTO 12) = LD else --ld
+			"10111" when ir (15 DOWNTO 12) = ST else --st
+			"11000" when ir (15 DOWNTO 12) = LDB else --ldb
+			"11001" when ir (15 DOWNTO 12) = STB else --stdb
+			"11010" when ir (15 DOWNTO 12) = SALTCOND and ir(8 DOWNTO 8) = "0" else --BZ
+			"11010" when ir (15 DOWNTO 12) = SALTCOND and ir(8 DOWNTO 8) = "1" else --BNZ
+			"11011" when ir (15 DOWNTO 12) = JMPS and ir(2 DOWNTO 0) = "000" else --JZ
+			"11100" when ir (15 DOWNTO 12) = JMPS and ir(2 DOWNTO 0) = "001" else --JNZ
+			"11101" when ir (15 DOWNTO 12) = JMPS and ir(2 DOWNTO 0) = "011" else --JMP
+			"11110" when ir (15 DOWNTO 12) = JMPS and ir(2 DOWNTO 0) = "000" else --JAL
+			"11111";
+		
+		 with ir select ldpc <= 
+		'0' when "1111111111111111", --HALT
+		'1' when others;
+		
+		with ir(15 DOWNTO 12) select addra <=
+		ir(11 DOWNTO 9) when MOV, --MOVI MOVHI
+		ir(8 DOWNTO 6) when others; --LD ST LDB STB IO
+		
+		with ir(15 DOWNTO 12) select addrb <=
+		ir(2 DOWNTO 0) when ARITMET, --ariTMET
+		ir(2 DOWNTO 0) when COMP, --compare
+		ir(2 DOWNTO 0) when MUL, --mult
+		ir(11 DOWNTO 9) when others; --MOVI MOVHI LD ST LDB STB
+		
+	
+		with ir select addrd <=
+		ir(11 DOWNTO 9) when others; --MOVI MOVHI LD ST LDB STB IO
+		
+--		with ir select wrd <= 	--permis escritura br
+--		'0' when "1111111111111111",
+--		'0' when "0100------------",
+--		'0' when "1110------------",
+--		'1' when others;
+
+		wrd <=
+			'1' when 	ir(15 DOWNTO 12) = ARITMET or
+							ir(15 DOWNTO 12) = LD or
+							ir(15 DOWNTO 12) = LDB or
+							ir(15 DOWNTO 12) = MOV or
+							ir(15 DOWNTO 12) = COMP or
+							ir(15 DOWNTO 12) = MUL or
+							ir(15 DOWNTO 12) = "0010" or
+							(ir(15 DOWNTO 12) = IO and ir(8 downto 8) = "0") or
+							(ir(15 DOWNTO 12) = JMPS and ir(2 DOWNTO 0) = "100")
+			else '0';	
+		
+		with ir(15 DOWNTO 12) select immed_x2<=
+			'1' when LD,
+			'1' when ST,
+			'1' when SALTCOND,
+			'0' when others;
+		with ir(15 DOWNTO 12) select word_byte<=
+			'1' when LDB,
+			'1' when STB,
+			'0' when others;
+		
+		with ir(15 DOWNTO 12) select wr_m <=
+			'1' when ST,
+			'1' when STB,
+			'0' when others;
+			
+		
+		in_d <=
+			"01" when ir(15 DOWNTO 12)=LD else
+			"01" when ir(15 DOWNTO 12)=LDB else
+			"10" when ir(15 DOWNTO 12)=JMPS and ir(2 DOWNTO 0) = "100" else
+			"00" ;
+		
+		with ir(15 DOWNTO 12) SELECT immed <=
+		std_logic_vector(resize(signed(ir(7 DOWNTO 0)), immed'length)) when MOV,
+		std_logic_vector(resize(signed(ir(7 DOWNTO 0)), immed'length)) when SALTCOND,
+		std_logic_vector(resize(signed(ir(7 DOWNTO 0)), immed'length)) when IO,
+		std_logic_vector(resize(signed(ir(5 DOWNTO 0)), immed'length)) when others;
+		
+		with ir(15 DOWNTO 12) select reg_b <=
+			'1' when ARITMET,
+			'1' when MUL,
+			'1' when COMP,
+			'1' when SALTCOND,
+			'1' when JMPS,
+			'0' when others;
+			
+	--control_pc : OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+		--	 salt_relatiu: OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+			-- z: IN STD_LOGIC););
+		
+		 	
+		control_pc <= --SALTS
+		"01" when ir(15 DOWNTO 12) = SALTCOND and ((ir(8 DOWNTO 8) = "0" and z = '1') or (ir(8 DOWNTO 8) = "1" and z = '0')) else
+		"10" when ir(15 DOWNTO 12) = 	JMPS and ((ir(2 DOWNTO 0) = "011") or (ir(2 DOWNTO 0) = "000" and z = '1') or 
+															(ir(2 DOWNTO 0) = "001" and z = '0') or ir(2 DOWNTO 0) = "100")else
+		"11" when ir(15 DOWNTO 0) = "1111111111111111" else
+		"00";
+		
+		addr_io <= ir(7 DOWNTO 0);
+		wr_out <= '1' when ir(15 downto 12) = IO and ir(8 downto 8) = "1" else '0';
+		rd_in <= '1' when ir(15 downto 12) = IO and ir(8 downto 8) = "0" else '0';
+		addr_a <= addra;
+		addr_b <= addrb;
+		addr_d <= addrd;
+END Structure;

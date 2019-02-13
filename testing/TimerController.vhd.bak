@@ -1,0 +1,31 @@
+LIBRARY ieee;
+USE ieee.std_logic_1164.all;
+USE ieee.std_logic_arith.all;
+USE ieee.std_logic_unsigned.all;
+
+ENTITY timer IS
+PORT (boot 					: IN 		STD_LOGIC;
+		clk	 			: IN 		STD_LOGIC;
+		inta					: IN		STD_LOGIC;
+		interruptNow :IN STD_LOGIC;
+		intr					: OUT		STD_LOGIC := '0');	
+END timer;
+
+ARCHITECTURE Structure OF timer IS
+
+BEGIN
+
+process(clk, boot)
+		variable count : integer := 25;
+		begin
+		   if rising_edge(clk) then
+
+				if boot = '1' then count := 50; intr <= '0';
+				elsif  interruptNow = '1' then intr <= '0';
+				elsif inta = '1' then intr <= '0';
+				elsif count > 0 then count := count -1;
+				else count := 6500000; intr <= '1';
+				end if;
+			end if;
+end process;
+END STRUCTURE;

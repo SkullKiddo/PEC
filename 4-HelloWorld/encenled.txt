@@ -1,3 +1,0 @@
-movi r1, 0xAA
-movhi r1, 0xAA
-out 5, r1 

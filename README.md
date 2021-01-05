@@ -1,2 +1,2 @@
 # PEC
-SISA architecture cpu design in VHDL and periferics
+SISA architecture cpu with periferics controll design in VHDL and periferics
